@@ -1,0 +1,15 @@
+.mxproject
+Debug/
+.settings/
+
+*.o
+*.d
+*.su
+*.cyclo
+*.elf
+*.bin
+*.hex
+*.map
+
+.DS_Store
+Thumbs.db
