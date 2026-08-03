@@ -22,6 +22,8 @@
 | **SCL / SCK** | PB6 (I2C1_SCL) | I2C Clock / SPI Clock |
 | **SDA / SDI** | PB7 (I2C1_SDA) | I2C Data / SPI MOSI |
 
+### Setup that I used:
+![My setup](./Docs/setup.jpeg)
 
 
 ## Getting started:
