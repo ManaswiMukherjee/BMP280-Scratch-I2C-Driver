@@ -4,6 +4,9 @@
 
 <h2>Requirements :</h2>
 
+* This repo is made to store my progress of implementing a bare metal i2c driver on the stm32 for a bmp280 sensor.
+* Commit message convention is `DD/MM/YY_HH:MM - REMARKS`
+* CHANGELOG.md contains mistakes, their solutions and learning.
 
 ### Hardware I am using:
 * **Microcontroller :** STM32F411CUE6 (Black Pill).
