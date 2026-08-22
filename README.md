@@ -5,11 +5,12 @@
 <h2>Requirements :</h2>
 
 
-### Hardware:
+### Hardware I am using:
 * **Microcontroller :** STM32F411CUE6 (Black Pill).
 * **Sensor :** BMP280 Sensor.
 * **Debugger and Programmer :** ST-LINK V2 (or onboard ST-LINK)
 * **Connecting wires and breadboard ** .
+* Logic Analyzer
 
 ### Software:
 * **[STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html)** (v1.10.0 or higher recommended)
