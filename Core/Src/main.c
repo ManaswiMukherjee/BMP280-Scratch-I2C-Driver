@@ -1,5 +1,84 @@
 #include "stm32f4xx.h"
+#include "stdint.h"
 
+
+#define BMP280_I2C_ADDR 	0x76	//7 bit address
+
+#define BMP280_REG_ID		0xDO	// contains chip identification number
+/*
+#define
+#define
+#define
+#define
+#define
+#define
+*/
+
+// the timeout function
+static int timeout(volatile uint32_t *reg, uint16_t mask)
+{
+	uint8_t time = 250;	//rough guess of time 1000 iterations
+	for(uint16_t t = 0; t <= time * 4; t++)
+	{
+		if((*reg & mask) == mask){return 1;}
+
+	}
+	return 0;
+}
+
+// i2c write function
+int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
+{
+	volatile uint8_t dummy = 0;
+
+	//enabling ACK for acknowledgment of received data
+	I2C1->CR1 |= 0x1 << 10;
+
+	//starting generation
+	I2C1->CR1 |= 0x1 << 8;
+
+	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+
+	//writing i2c address to data register
+	I2C1->DR = addr << 1 | 0;
+
+	//waiting for addr bit to set to finish transmitting address
+	//while(!(I2C1->SR1 & (1 << 1)));
+	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+
+	//dummy status register read(stm32 hardware quirk)
+	//reading sr1 and sr2 as it is required to clear the addr flag(required by hardware)
+	//unused values of dummy
+	dummy = I2C1->SR1;
+	dummy = I2C1->SR2;
+
+	//writing the register address to the DR
+	I2C1->DR = reg;
+
+	//waiting for byte transfer finished flag for register address write completion
+	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+
+	//writing data to the register
+	I2C1->DR = value;
+
+	//waiting for byte transfer finished flag for data write completion
+	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+
+	I2C1->CR1 |= 0X1 << 9; //stopping I2C
+	return 1;	// if everything goes well
+}
 
 const uint8_t address = 0x76;//BMP280 7 bit address
 uint8_t buf[8];
@@ -7,7 +86,7 @@ volatile uint8_t dummy = 0;
 //uint32_t
 /*void read()
 {
-	//enabling ACK for acknowledgement of received data
+	//enabling ACK for acknowledgment of received data
 	I2C1->CR1 |= 0x1 << 10;
 	//starting generation
 	I2C1->CR1 |= 0x1 << 8;
@@ -18,31 +97,7 @@ volatile uint8_t dummy = 0;
 	I2C1->CR1 |= 0X1 << 9;
 }*/
 
-/*void write()
-{
-	//enabling ACK for acknowledgement of received data
-	I2C1->CR1 |= 0x1 << 10;
-	//starting generation
-	I2C1->CR1 |= 0x1 << 8;
 
-
-	//waiting for DR to be empty, checking if TxE bit is set or not
-	while(!(I2C1->SR1 & (1 << 7)));
-	//writing address to data register
-	I2C1->DR = address;
-	//waiting for addr bit to set to finish transmitting address
-	while(!(I2C1->SR1 & (1 << 1)));
-	//dummy SR1 and SR2 read
-	uint8_t dummy = I2C1->SR1 | I2C1->SR2;
-	//writing the register address to the DR
-	I2C1->DR = 0xD0;
-	//waiting again for finishing transmit
-	while(!(I2C1->SR1 & (1 << 1)));
-
-
-	//stopping generation
-	I2C1->CR1 |= 0X1 << 9;
-}*/
 
 int main()
 {
@@ -82,7 +137,7 @@ int main()
 
 
 	// READING AND WRITING
-	//enabling ACK for acknowledgement of received data
+	//enabling ACK for acknowledgment of received data
 	I2C1->CR1 |= 0x1 << 10;
 	//starting generation
 	I2C1->CR1 |= 0x1 << 8;
