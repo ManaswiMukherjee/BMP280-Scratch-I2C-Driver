@@ -4,12 +4,16 @@
 
 <h2>Requirements :</h2>
 
+* This repo is made to store my progress of implementing a bare metal i2c driver on the stm32 for a bmp280 sensor.
+* Commit message convention is `DD/MM/YY_HH:MM - REMARKS`
+* CHANGELOG.md contains mistakes, their solutions and learning.
 
-### Hardware:
+### Hardware I am using:
 * **Microcontroller :** STM32F411CUE6 (Black Pill).
 * **Sensor :** BMP280 Sensor.
 * **Debugger and Programmer :** ST-LINK V2 (or onboard ST-LINK)
 * **Connecting wires and breadboard ** .
+* Logic Analyzer
 
 ### Software:
 * **[STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html)** (v1.10.0 or higher recommended)
