@@ -1,6 +1,6 @@
 # DAY-1 23/08/2026
 
-### Some part of the code has been written previously but `CHANGELOG` starts from 22/08/26
+### Some part of the code has been written previously but `CHANGELOG` starts from 23/08/26
 ## 1. Putting defined numbers for addresses instead of hardcoding in the middle of nowhere
 
 ## 2. Making a timeout function to check if bits are set is status registers
@@ -30,7 +30,7 @@ Plus time has no data time when it is being declared.
 4. No include for data types like uint8_t.
 * Fix - Added the line `include #stdint.h"`
 
-```
+```c
 static int timeout(volatile uint8_t *reg, uint8_t mask)
 {
 	uint8_t time = 1000;	//rough guess of time
@@ -147,7 +147,7 @@ Problems in the above code
 1. The if(timeout(...) == 0){} pattern does nothing.
 * Fix - The check should return 0 if the condition is not passed.
 2. Last timeout() call has regressed — missing the & again.
-* Fix - Added `&` for address.
+* Fix - Added `&` for akvddress.
 3. The function ignores its own parameters.
 * Fix - Used function parameters instead of hardcoded values where required.
 4. value is never written anywhere.
@@ -161,3 +161,8 @@ Problems in the above code
 * Fix - add write `value` to DR line and check BTF(byte transfer flag)
 
 ### 8. At fix in problem 1 we `return`ed from the write function without stopping i2c
+
+
+# DAY-2 29/08/2026
+
+### Added write function to the code. Works as intended.

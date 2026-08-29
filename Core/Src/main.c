@@ -1,15 +1,20 @@
+/*
+ * This is the implementation of an i2c driver for a bmp280 sensor starting from scratch
+ * using CMSIS headers only.
+ */
+
 #include "stm32f4xx.h"
 #include "stdint.h"
 
 
-#define BMP280_I2C_ADDR 	0x76	//7 bit address
+#define BMP280_I2C_ADDR 		0x76	//7 bit address
 
-#define BMP280_REG_ID		0xDO	// contains chip identification number
+#define BMP280_REG_ID			0xD0	// contains chip identification number 0x58
+#define BMP280_REG_RESET		0xE0
+#define BMP280_REG_STATUS		0xF3
+#define BMP280_REG_CTRL_MEAS	0xF4
+#define BMP280_REG_CONFIG		0xF5
 /*
-#define
-#define
-#define
-#define
 #define
 #define
 */
@@ -30,6 +35,7 @@ static int timeout(volatile uint32_t *reg, uint16_t mask)
 int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 {
 	volatile uint8_t dummy = 0;
+	//dummy variable not used. explained more after 23 lines
 
 	//enabling ACK for acknowledgment of received data
 	I2C1->CR1 |= 0x1 << 10;
@@ -80,24 +86,78 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 	return 1;	// if everything goes well
 }
 
-const uint8_t address = 0x76;//BMP280 7 bit address
-uint8_t buf[8];
-volatile uint8_t dummy = 0;
-//uint32_t
-/*void read()
+
+// i2c read function
+int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 {
+	volatile uint8_t dummy = 0;// dummy variable to read sr1 and sr2
 	//enabling ACK for acknowledgment of received data
 	I2C1->CR1 |= 0x1 << 10;
+
 	//starting generation
 	I2C1->CR1 |= 0x1 << 8;
 
+	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
 
+	//writing i2c address to data register
+	I2C1->DR = addr << 1 | 0;
 
-	//stopping generation
-	I2C1->CR1 |= 0X1 << 9;
-}*/
+	//waiting for addr bit to set to finish transmitting address
+	//while(!(I2C1->SR1 & (1 << 1)));
+	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
 
+	//dummy sr1 and sr2 read to clear addr
+	dummy = I2C1->SR1;
+	dummy = I2C1->SR2;
 
+	//writing register value to the data register
+	I2C1->DR = reg;
+
+	//waiting for byte transfer finished flag for data write completion
+	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+
+	//repeated start condition
+	I2C1->CR1 |= 0x1 << 8;
+
+	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+
+	//writing address to data register for read operation
+	I2C1->DR = addr << 1 | 1;
+
+	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+
+	I2C1->CR1 &= ~(1<<10);  // clear the ACK bit as we only need one byte
+
+	//dummy sr1 and sr2 read to clear addr
+	dummy = I2C1->SR1;
+	dummy = I2C1->SR2;
+
+	I2C1->CR1 |= 0X1 << 9; //stopping I2C
+
+	if(timeout(&I2C1->SR1, (1<<6)) == 0){  // wait for RxNE to set receive not empty
+		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		return 0;
+	}
+	*value = I2C1->DR;
+	I2C1->CR1 |= (1 << 10);//renabling ack for future transfers
+
+	return 1;
+}
 
 int main()
 {
@@ -135,71 +195,23 @@ int main()
 
 
 
+	/*// test for the read function
+	uint8_t id = 0;
 
-	// READING AND WRITING
-	//enabling ACK for acknowledgment of received data
-	I2C1->CR1 |= 0x1 << 10;
-	//starting generation
-	I2C1->CR1 |= 0x1 << 8;
-	//waiting for start condition to be generated
-	while(!(I2C1->SR1 & (1 << 0)));
-
-	//waiting for DR to be empty, checking if TxE bit is set or not
-	//while(!(I2C1->SR1 & (1 << 7)));
-	//writing address to data register
-	I2C1->DR = address << 1 | 0;
-	//waiting for addr bit to set to finish transmitting address
-	while(!(I2C1->SR1 & (1 << 1)));
-	//dummy SR1 and SR2 read
-	dummy = I2C1->SR1;
-	dummy = I2C1->SR2;
-	//writing the "ID" register address to the DR
-	I2C1->DR = 0xD0;
-	//waiting for byte transfer finished flag
-	while(!(I2C1->SR1 & (1 << 2)));
-
-	/*//waiting again for finishing transmit
-	while(!(I2C1->SR1 & (1 << 1)));
-
-	The ADDR flag is only set when a Slave Address match occurs on the bus.
-	It will never set after you transmit a standard data byte like 0xD0.
-	Waiting for ADDR here causes an infinite hang.
+	if(!i2c_read_reg(BMP280_I2C_ADDR, BMP280_REG_ID, &id)){
+		while(1){__NOP();}
+	}
 	*/
-	//
-	//generating a repeated start condition
-	I2C1->CR1 |= 0x1 << 8;
-	//waiting for start condition to be generated
-	while(!(I2C1->SR1 & (1 << 0)));
-
-	//waiting for DR to be empty, checking if TxE bit is set or not
-	//while(!(I2C1->SR1 & (1 << 7)));
-
-	//writing address to data register for read operation
-	I2C1->DR = address << 1 | 1;
-	//waiting for addr bit to set to finish transmitting address
-	while(!(I2C1->SR1 & (1 << 1)));
-
-	I2C1->CR1 &= ~(1<<10);  // clear the ACK bit
-	//stopping generation
 
 
-
-	dummy = I2C1->SR1;  // read SR1 and SR2 to clear the ADDR bit.... EV6 condition
-	dummy = I2C1->SR2;	// sequential read better than reading at once
-	//because stm32 requires to read sr1 and then sr2 strictly
-
-	I2C1->CR1 |= 0X1 << 9; //stopping I2C
-	/*//stopping generation
-	I2C1->CR1 |= 0X1 << 9; //stopping I2C*/
-	//ON STM32 hardware the stop bit must be set before clearing the addr flag
-
-
-	while (!(I2C1->SR1 & (1<<6)));  // wait for RxNE to set receive not empty
-
-	//reading data from data register
-	buf[0] = I2C1->DR;		//should be 0x58
-
-	I2C1->CR1 |= (1 << 10);//renabling ack for future transfers
-
+	/*//test for the write function
+	uint8_t ctrl_meas_status;
+	if(!i2c_write_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, 0x4B)){
+		while(1){__NOP();}
+	}
+	if(!i2c_read_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, &ctrl_meas_status)){
+		while(1){__NOP();}
+	}
+	*/
 	return 0;
 }

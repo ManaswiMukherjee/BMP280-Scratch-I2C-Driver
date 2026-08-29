@@ -1,0 +1,1 @@
+### This ino file is a test code in arduino ide for the logic analyzer. It was specifically tested with the rpi pico.
