@@ -30,7 +30,7 @@ Ex: Checking whether start condition is generated or not in SR1 after we set the
 
 static int timeout(volatile uint32_t *reg, uint16_t mask)
 {
-	uint8_t time = 250;				// storing 250 in time var as it is 8-bit variable
+	uint8_t time = 250;							// storing 250 in time var as it is 8-bit variable
 	for(uint16_t t = 0; t <= time * 4; t++)		// rough guessing of 1000 cycles for timeout completion
 	{
 		if((*reg & mask) == mask){return 1;}
@@ -52,7 +52,7 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 	I2C1->CR1 |= 0x1 << 8;
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
 		return 0;
 	}
 
@@ -61,7 +61,7 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 
 	//waiting for addr bit to set to finish transmitting address
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
 		return 0;
 	}
 
@@ -75,11 +75,11 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 
 	//waiting for byte transfer finished flag for register address write completion
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
 		return 0;
 	}
 
-	//writing data to the register
+	// writing data to the register
 	I2C1->DR = value;
 
 	//waiting for byte transfer finished flag for data write completion
@@ -88,8 +88,8 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 		return 0;
 	}
 
-	I2C1->CR1 |= 0X1 << 9; //stopping I2C
-	return 1;	// if everything goes well
+	I2C1->CR1 |= 0X1 << 9; 	// stopping I2C
+	return 1;				// if everything goes well
 }
 
 
@@ -97,6 +97,7 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 {
 	volatile uint8_t dummy = 0;// dummy variable to read sr1 and sr2
+	
 	//enabling ACK for acknowledgment of received data
 	I2C1->CR1 |= 0x1 << 10;
 
@@ -104,7 +105,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 	I2C1->CR1 |= 0x1 << 8;
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
 		return 0;
 	}
 
@@ -112,7 +113,6 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 	I2C1->DR = addr << 1 | 0;
 
 	//waiting for addr bit to set to finish transmitting address
-	//while(!(I2C1->SR1 & (1 << 1)));
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
 		I2C1->CR1 |= 0X1 << 9; //stopping I2C
 		return 0;
@@ -127,7 +127,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 
 	//waiting for byte transfer finished flag for data write completion
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
 		return 0;
 	}
 
@@ -135,7 +135,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 	I2C1->CR1 |= 0x1 << 8;
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
 		return 0;
 	}
 
@@ -143,7 +143,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 	I2C1->DR = addr << 1 | 1;
 
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
 		return 0;
 	}
 
@@ -153,14 +153,14 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 	dummy = I2C1->SR1;
 	dummy = I2C1->SR2;
 
-	I2C1->CR1 |= 0X1 << 9; //stopping I2C
+	I2C1->CR1 |= 0X1 << 9; // stopping I2C
 
-	if(timeout(&I2C1->SR1, (1<<6)) == 0){  // wait for RxNE to set receive not empty
-		I2C1->CR1 |= 0X1 << 9; //stopping I2C
+	if(timeout(&I2C1->SR1, (1<<6)) == 0){  	// wait for RxNE to set receive not empty
+		I2C1->CR1 |= 0X1 << 9; 				// stopping I2C if timeout exceeds
 		return 0;
 	}
 	*value = I2C1->DR;
-	I2C1->CR1 |= (1 << 10);//renabling ack for future transfers
+	I2C1->CR1 |= (1 << 10);					//renabling ack for future transfers
 
 	return 1;
 }
@@ -175,28 +175,28 @@ int main()
 	GPIOB->MODER &= ~((0x3 << 14) | (0x3 << 12));	//Put port to alternate function mode
 	GPIOB->MODER |= (0x1 << 15) | (0x1 << 13);
 
-	GPIOB->OTYPER |= (0X1 << 6) | (0X1 << 7);	//Mandatory Open-Drain for I2C, otherwise short circuit
+	GPIOB->OTYPER |= (0X1 << 6) | (0X1 << 7);		// Mandatory Open-Drain for I2C, otherwise short circuit
 
-	GPIOB->AFR[0] &= ~((0xF << 28) | (0XF << 24)); //Alternate function selection
+	GPIOB->AFR[0] &= ~((0xF << 28) | (0XF << 24)); 	// Alternate function selection
 	GPIOB->AFR[0] |= (0x4 << 28) | (0x4 << 24);
 
-	GPIOB->OSPEEDR &= ~((0x3 << 14) | (0x3 << 12));		//Setting fast speed 10
+	GPIOB->OSPEEDR &= ~((0x3 << 14) | (0x3 << 12));	//Setting fast speed 10
 	GPIOB->OSPEEDR |= (0x1 << 15) | (0x1 << 13);
 
 	// I2C CONFIGURATION
 
-	//setting bus speed
-	//Setting the clock peripheral receives from bus
+	// setting bus speed
+	// Setting the clock peripheral receives from bus
 	I2C1->CR2 |= 16; //0x1 << 4; is not recommended for dirty bits
 
-	//setting clock control
+	// setting clock control
 	I2C1->CCR &= ~0xFFFF;
 	I2C1->CCR |= 0x50;
 
-	//setting t_rise
+	// setting t_rise
 	I2C1->TRISE = 0x11;
 
-	//enabling peripheral
+	// enabling peripheral
 	I2C1->CR1 |= 0X1;
 
 
