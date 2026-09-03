@@ -20,10 +20,18 @@
 */
 
 // the timeout function
+/*
+This function is used to check hardware status-registers against a known bit mask that we want to obtain
+for suitable condition
+
+Ex: Checking whether start condition is generated or not in SR1 after we set the start bit in CR1
+(See first usage of timeout function in write funciton)
+*/
+
 static int timeout(volatile uint32_t *reg, uint16_t mask)
 {
-	uint8_t time = 250;	//rough guess of time 1000 iterations
-	for(uint16_t t = 0; t <= time * 4; t++)
+	uint8_t time = 250;				// storing 250 in time var as it is 8-bit variable
+	for(uint16_t t = 0; t <= time * 4; t++)		// rough guessing of 1000 cycles for timeout completion
 	{
 		if((*reg & mask) == mask){return 1;}
 
@@ -52,15 +60,13 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 	I2C1->DR = addr << 1 | 0;
 
 	//waiting for addr bit to set to finish transmitting address
-	//while(!(I2C1->SR1 & (1 << 1)));
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
 		I2C1->CR1 |= 0X1 << 9; //stopping I2C
 		return 0;
 	}
 
 	//dummy status register read(stm32 hardware quirk)
-	//reading sr1 and sr2 as it is required to clear the addr flag(required by hardware)
-	//unused values of dummy
+	//reading 
 	dummy = I2C1->SR1;
 	dummy = I2C1->SR2;
 
