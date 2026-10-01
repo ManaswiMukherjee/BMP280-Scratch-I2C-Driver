@@ -2,6 +2,7 @@
 Debug/
 .settings/
 
+bmp280\ memory.md
 *.o
 *.d
 *.su
