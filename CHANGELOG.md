@@ -170,13 +170,35 @@ Problems in the above code
 # DAY-3 03/09/2026
 
 ## Why repeated start?
-### We make a repeated start condition in `i2c_reg_read` because after we write to the address, the sensor's internal pointer is set to the address of the register `reg`. Now as we want to read from the address we have to send the 7-bit address along with a write(`1`) as we cannot change from write to read mid transmission and have to transmit the address all over again but this time the internal pointer of the sensor is set to the desired register address from where we want to read. 
+### We make a repeated start condition in `i2c_reg_read` because after we write to the address, the sensor's internal pointer is set to the address of the register `reg`. Now as we want to read from the address we have to send the 7-bit address along with a read bit(`1`) as we cannot change from write to read mid transmission and have to transmit the address all over again but this time the internal pointer of the sensor is set to the desired register address from where we want to read. 
 ### And repeated start avoids releasing the bus while changing from read to write. 
 
 ## Why ACK is disabled for 1 byte read?
-### For reading only one byte, we disable NACK so as the sensor does not keep sending more data
+### For reading only one byte, we disable ACK so as the sensor does not keep sending more data
 ### Meaning `ACK - byte received send more` and `NACK - byte received do not send more`
 
 ## Why dummy read is required?
 ### When the I2C1 peripheral finishes shifting out the address byte and sees an ACK from the slave, it sets ADDR (SR1 bit 1) to tell that "the address phase is done, direction is locked in." Until this is acknowledged in software, the peripheral stretches SCL low — the whole bus is stalled waiting.
 ### And in stm32 hardware, the addr can only be cleared by reading the status in a specific sequence SR1 then SR2.
+
+# DAY-4 28/09/2026
+
+### 3 different procedures for reading N = 1, 2, >=3. Implementing N >=3 first
+
+### Procedure given in RM
+
+```
+For N > 2 - byte reception, from N-2 data reception
+
+• Wait until BTF = 1 (data N-2 in DR, data N-1 in shift register, SCL stretched low until
+data N-2 is read)
+• Set ACK low
+• Read data N-2
+• Wait until BTF = 1 (data N-1 in DR, data N in shift register, SCL stretched low until a data N-1 is read)
+• Set STOP high
+• Read data N-1 and N
+```
+
+## Why are we holding checking BTF? To stretch the clock?
+### When BTF is set, the bus is stalled in a unknown state as the shift register and DR both have data in them so this period of time is used to apply the configurations we want after the next byte transfer has been finished.
+
