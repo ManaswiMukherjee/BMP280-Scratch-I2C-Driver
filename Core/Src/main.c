@@ -11,16 +11,22 @@
 #define BMP280_I2C_ADDR 		0x76	//7 bit address
 
 #define BMP280_REG_ID			0xD0	// contains chip identification number 0x58
-#define BMP280_REG_RESET		0xE0
-#define BMP280_REG_STATUS		0xF3
-#define BMP280_REG_CTRL_MEAS	0xF4
-#define BMP280_REG_CONFIG		0xF5
-/*
-#define
-#define
-*/
+#define BMP280_REG_RESET		0xE0	//
+#define BMP280_REG_STATUS		0xF3	//
+#define BMP280_REG_CTRL_MEAS	0xF4	//
+#define BMP280_REG_CONFIG		0xF5	//
+#define BMP280_REG_PRESS_MSB	0xF7	//
+#define BMP280_REG_PRESS_LSB	0xF8	//
+#define BMP280_REG_PRESS_XLSB	0xF9	//
+#define BMP280_REG_TEMP_MSB		0xFA	//
+#define BMP280_REG_TEMP_LSB		0xFB	//
+#define BMP280_REG_TEMP_XLSB	0xFC	//
 
 
+// BMP280 type definitions
+typedef int32_t BMP280_S32_t;    // Signed 32-bit integer
+typedef uint32_t BMP280_U32_t;   // Unsigned 32-bit integer
+typedef int64_t BMP280_S64_t;    // Signed 64-bit integer
 
 // struct for the calibration block
 typedef struct {
@@ -73,7 +79,7 @@ Ex: Checking whether start condition is generated or not in SR1 after we set the
 
 static int timeout(volatile uint32_t *reg, uint16_t mask)
 {
-	uint8_t time = 250;							// storing 250 in time variable as it is 8-bit variable
+	uint16_t time = 10000;							// storing 250 in time variable as it is 8-bit variable
 	for(uint16_t t = 0; t <= time * 4; t++)		// rough guessing of 1000 cycles for timeout completion
 	{
 		if((*reg & mask) == mask){return 1;}
@@ -217,7 +223,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 /*
  * addr - the i2c address of the bmp280
  * reg - the register address inside the chip
- * value - the value to write to the register
+ * value - the variable in which the value from the register is read
  * bytes - no of bytes to read
  */
 int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
@@ -335,6 +341,37 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 	return 1;
 }
 
+int bmp280_read_raw(int32_t *raw_temp, int32_t *raw_pres)
+{
+	// reading raw values from the registers
+	// defining variable to put the value in
+	uint8_t val[6];
+	// putting the sensor into normal mode by writing 11 into the ctrl_meas register into 0 and 1 bit
+	if(i2c_write_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, 0x27) == 0){
+		return 0;
+	}
+	if(i2c_multi_read_reg(BMP280_I2C_ADDR, BMP280_REG_PRESS_MSB, val, 6) == 0){
+		return 0;
+	}
+
+
+	*raw_pres = (val[0] << 12) | (val[1] << 4) | val[2] >> 4;
+	*raw_temp = (val[3] << 12) | (val[4] << 4) | val[5] >> 4;
+	return 1;
+
+}
+
+BMP280_S32_t t_fine;
+BMP280_S32_t bmp280_compensate_T_int32(BMP280_S32_t adc_T, bmp280_calib_t *c)
+{
+	BMP280_S32_t var1, var2, T;
+	var1 = ((((adc_T >> 3) - ((BMP280_S32_t)c->dig_T1 << 1))) * ((BMP280_S32_t)c->dig_T2)) >> 11;
+	var2 = (((((adc_T >> 4) - ((BMP280_S32_t)c->dig_T1)) * ((adc_T >> 4) - ((BMP280_S32_t)c->dig_T1))) >> 12) *((BMP280_S32_t)c->dig_T3)) >> 14;
+	t_fine = var1 + var2;
+	T = (t_fine * 5 + 128) >> 8;
+	return T;
+}
+
 int main()
 {
 
@@ -379,10 +416,10 @@ int main()
 	}
 	*/
 
-
-	/*//test for the write function
+	/*
+	//test for the write function
 	uint8_t ctrl_meas_status;
-	if(!i2c_write_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, 0x4B)){
+	if(!i2c_write_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, 0x03)){
 		while(1){__NOP();}
 	}
 	if(!i2c_read_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, &ctrl_meas_status)){
@@ -390,6 +427,8 @@ int main()
 	}
 	*/
 
+
+	/*
 	// test for the multiple byte read function
 	uint8_t buf[24];
 	uint8_t flag = 0;
@@ -406,7 +445,30 @@ int main()
 		while(1){__NOP();}
 	}
 	else{flag = 1;}
+	*/
+	/*
+	int8_t flag = 0,op = 0;
+	int32_t temp = 0, pres = 0;
+	while(1){
+		op = bmp280_read_raw(&temp, &pres);
+		if(op == 0){flag = 1;}
+		else if(op == 2){flag = 2;}
+		else if(op == 3){flag = 3;}
+		else{flag = 0;}
+	}
+	*/
+	int8_t flag = 0;
+	int32_t temp = 0, pres = 0;
+	uint8_t buf[24];
+	bmp280_calib_t cali;
+	bmp280_read_raw(&temp, &pres);
+	if(!i2c_multi_read_reg(BMP280_I2C_ADDR, 0x88, buf, 24)){
+		flag = 1;
+	}
+	bmp280_parse_calib(buf, &cali);
 
+	int32_t final_temp = 0;
+	final_temp = bmp280_compensate_T_int32(temp, &cali);
 
-	return 0;
+	while(1){__NOP();}
 }
