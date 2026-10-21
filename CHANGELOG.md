@@ -202,3 +202,20 @@ data N-2 is read)
 ## Why are we holding checking BTF? To stretch the clock?
 ### When BTF is set, the bus is stalled in a unknown state as the shift register and DR both have data in them so this period of time is used to apply the configurations we want after the next byte transfer has been finished.
 
+# DAY-5 20/10/2026
+### Undesired behaviour on implementing raw value read, error on write function
+
+## Understanding the i2c diagram
+
+### Start condition - Start condition is when then sda is pulled low when scl is high
+### SDA can only transition when scl is low
+### After every address transmission there is either an ACK or a NACK
+### Stop condition - Stop condition is when sda is pulled high when scl is high	
+
+## Maybe the problem was that I was writing 0x3 to the ctrl_meas register, will update this to 00100111(0x27) to read the temp and pres register. Writing 000 to the registers was skipping them hence not giving output
+
+## Had written return before calculating the values hence they were returning 0
+
+### Now compensation math. Downloading the api from boschsensortec github.
+
+### Temperature comes up in order of thousands so used int32_t instead of int8_t
