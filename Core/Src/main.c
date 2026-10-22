@@ -372,6 +372,27 @@ BMP280_S32_t bmp280_compensate_T_int32(BMP280_S32_t adc_T, bmp280_calib_t *c)
 	return T;
 }
 
+BMP280_U32_t bmp280_compensate_P_int64(BMP280_S32_t adc_P, bmp280_calib_t *c)
+{
+	BMP280_S64_t var1, var2, p;
+	var1 = ((BMP280_S64_t)t_fine) - 128000;
+	var2 = var1 * var1 * (BMP280_S64_t)c->dig_P6;
+	var2 = var2 + ((var1*(BMP280_S64_t)c->dig_P5) << 17);
+	var2 = var2 + (((BMP280_S64_t)c->dig_P4) << 35);
+	var1 = ((var1 * var1 * (BMP280_S64_t)c->dig_P3)>>8) + ((var1 * (BMP280_S64_t)c->dig_P2) << 12);
+	var1 = (((((BMP280_S64_t)1) << 47) + var1)) * ((BMP280_S64_t)c->dig_P1) >> 33;
+	if (var1 == 0)
+	{
+		return 0; // avoid exception caused by division by zero
+	}
+	p = 1048576 - adc_P;
+	p = (((p << 31) - var2) * 3125) / var1;
+	var1 = (((BMP280_S64_t)c->dig_P9) * (p >> 13) * (p >> 13)) >> 25;
+	var2 = (((BMP280_S64_t)c->dig_P8) * p) >> 19;
+	p = ((p + var1 + var2) >> 8) + (((BMP280_S64_t)c->dig_P7) << 4);
+	return (BMP280_U32_t)p;
+}
+
 int main()
 {
 
@@ -467,8 +488,10 @@ int main()
 	}
 	bmp280_parse_calib(buf, &cali);
 
-	int32_t final_temp = 0;
+	float final_temp = 0, final_pres = 0;
 	final_temp = bmp280_compensate_T_int32(temp, &cali);
+	final_pres = bmp280_compensate_P_int64(pres, &cali);
+	final_pres = final_pres / 256 / 100;
 
 	while(1){__NOP();}
 }
