@@ -8,7 +8,7 @@
 #include "string.h"
 
 
-#define BMP280_I2C_ADDR 		0x76	//7 bit address
+#define BMP280_I2C_ADDR 		0x76	// 7 bit address of bmp280
 
 #define BMP280_REG_ID			0xD0	// contains chip identification number 0x58
 #define BMP280_REG_RESET		0xE0	//
@@ -22,11 +22,18 @@
 #define BMP280_REG_TEMP_LSB		0xFB	//
 #define BMP280_REG_TEMP_XLSB	0xFC	//
 
+// error code macros
+#define SUCCESS 0
+#define NO_ACK 1
+
+
 
 // BMP280 type definitions
 typedef int32_t BMP280_S32_t;    // Signed 32-bit integer
 typedef uint32_t BMP280_U32_t;   // Unsigned 32-bit integer
 typedef int64_t BMP280_S64_t;    // Signed 64-bit integer
+
+BMP280_S32_t t_fine; // variable required for pressure calculations
 
 // struct for the calibration block
 typedef struct {
@@ -341,13 +348,18 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 	return 1;
 }
 
+int bmp280_init()
+{
+
+}
+
 int bmp280_read_raw(int32_t *raw_temp, int32_t *raw_pres)
 {
 	// reading raw values from the registers
 	// defining variable to put the value in
 	uint8_t val[6];
 	// putting the sensor into normal mode by writing 11 into the ctrl_meas register into 0 and 1 bit
-	if(i2c_write_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, 0x27) == 0){
+	if(i2c_write_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, 0xFF) == 0){
 		return 0;
 	}
 	if(i2c_multi_read_reg(BMP280_I2C_ADDR, BMP280_REG_PRESS_MSB, val, 6) == 0){
@@ -361,7 +373,6 @@ int bmp280_read_raw(int32_t *raw_temp, int32_t *raw_pres)
 
 }
 
-BMP280_S32_t t_fine;
 BMP280_S32_t bmp280_compensate_T_int32(BMP280_S32_t adc_T, bmp280_calib_t *c)
 {
 	BMP280_S32_t var1, var2, T;

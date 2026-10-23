@@ -9,10 +9,10 @@
 * CHANGELOG.md contains mistakes, their solutions and learning.
 
 ### Hardware I am using:
-* **Microcontroller :** STM32F411CUE6 (Black Pill).
+* **Microcontroller :** STM32F411CEU6 (Black Pill).
 * **Sensor :** BMP280 Sensor.
 * **Debugger and Programmer :** ST-LINK V2 (or onboard ST-LINK)
-* **Connecting wires and breadboard ** .
+* **Connecting wires and breadboard.**
 * Logic Analyzer
 
 ### Software:
@@ -70,10 +70,3 @@ cd BMP280-Scratch-I2C-Driver
 4. Click **Resume** (green play button `F8`) to run the code.
 
 ---
-
-## Modifying Hardware Configuration (Optional)
-
-If you need to change pin assignments or peripheral clock settings through CubeMX   :
-1. Double-click the **`BMP280.ioc`** file inside STM32CubeIDE to open **STM32CubeMX**.
-2. Make your peripheral configuration changes.
-3. Save the file (`Ctrl + S`) and click **Yes** when prompted to **"Generate Code"**.
