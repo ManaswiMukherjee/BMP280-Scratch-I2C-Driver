@@ -219,3 +219,8 @@ data N-2 is read)
 ### Now compensation math. Downloading the api from boschsensortec github.
 
 ### Temperature comes up in order of thousands so used int32_t instead of int8_t
+
+# DAY-6 23/10/2026
+## Temperature and pressure both work 0.0
+### Now fixing correctness problems on the code.
+
