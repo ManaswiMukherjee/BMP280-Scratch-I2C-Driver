@@ -404,9 +404,8 @@ BMP280_U32_t bmp280_compensate_P_int64(BMP280_S32_t adc_P, bmp280_calib_t *c)
 	return (BMP280_U32_t)p;
 }
 
-int main()
+static void i2c1_init()
 {
-
 	//	SETUP
 	RCC->AHB1ENR |= 0x1 << 1;		//Enable clock for AHB1 bus
 	RCC->APB1ENR |= 0x1 << 21;		//Enable peripheral
@@ -437,6 +436,11 @@ int main()
 
 	// enabling peripheral
 	I2C1->CR1 |= 0X1;
+}
+
+int main()
+{
+
 
 
 	/*
