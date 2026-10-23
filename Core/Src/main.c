@@ -22,18 +22,27 @@
 #define BMP280_REG_TEMP_LSB		0xFB	//
 #define BMP280_REG_TEMP_XLSB	0xFC	//
 
-// error code macros
-#define SUCCESS 0
-#define NO_ACK 1
-
-
 
 // BMP280 type definitions
 typedef int32_t BMP280_S32_t;    // Signed 32-bit integer
 typedef uint32_t BMP280_U32_t;   // Unsigned 32-bit integer
 typedef int64_t BMP280_S64_t;    // Signed 64-bit integer
 
+// enumerator for i2c status
+typedef enum {
+    I2C_OK            =  0,
+    I2C_ERR_ARG       = -1,   /* bad length / null pointer */
+    I2C_ERR_BUSY      = -2,   /* bus busy before START */
+    I2C_ERR_TMO_SB    = -3,   /* START not generated */
+    I2C_ERR_TMO_ADDR  = -4,   /* address phase never finished */
+    I2C_ERR_TMO_TXE   = -5,   /* tx register/BTF never ready */
+    I2C_ERR_TMO_RXNE  = -6,   /* rx data never arrived */
+    I2C_ERR_NACK      = -7,   /* AF set: slave did not ACK */
+} i2c_status_t;
+
 BMP280_S32_t t_fine; // variable required for pressure calculations
+
+
 
 // struct for the calibration block
 typedef struct {
@@ -51,8 +60,6 @@ typedef struct {
     int16_t  dig_P8;
     int16_t  dig_P9;
 } bmp280_calib_t;
-
-
 
 
 // function to convert the calibration data into the struct
@@ -96,7 +103,7 @@ static int timeout(volatile uint32_t *reg, uint16_t mask)
 }
 
 // i2c write function
-int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
+i2c_status_t i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 {
 	volatile uint8_t dummy = 0;
 	//dummy variable not used. explained more after 23 lines
@@ -109,7 +116,7 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_SB;
 	}
 
 	//writing i2c address to data register
@@ -118,13 +125,10 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 	//waiting for ADDR bit to set to finish transmitting address
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_ADDR;
 	}
 
-	//dummy status register read(stm32 hardware quirk)
-	//reading 
-	dummy = I2C1->SR1;
-	dummy = I2C1->SR2;
+	i2c_clear_ADDR();
 
 	//writing the register address to the DR
 	I2C1->DR = reg;
@@ -132,7 +136,7 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 	//waiting for byte transfer finished flag for register address write completion
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_TXE;
 	}
 
 	// writing data to the register
@@ -141,21 +145,28 @@ int i2c_write_reg(uint8_t addr, uint8_t reg, uint8_t value)
 	//waiting for byte transfer finished flag for data write completion
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
 		I2C1->CR1 |= 0X1 << 9; //stopping I2C
-		return 0;
+		return I2C_ERR_TMO_TXE;
 	}
 
 	I2C1->CR1 |= 0X1 << 9; 	// stopping I2C
-	return 1;				// if everything goes well
+	return I2C_OK;				// if everything goes well
 }
 
+i2c_clear_ADDR()
+{
+	int dummy = 0;
+	//dummy sr1 and sr2 read to clear ADDR
+	dummy = I2C1->SR1;
+	dummy = I2C1->SR2;
 
+}
 // i2c read function
 /*
  * addr - the i2c address of the bmp280
  * reg - the register address inside the chip
  * value - the value to write to the register
  */
-int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
+i2c_status_t i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 {
 	volatile uint8_t dummy = 0;// dummy variable to read sr1 and sr2
 	
@@ -167,7 +178,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_SB;
 	}
 
 	//writing i2c address to data register
@@ -176,12 +187,10 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 	// waiting for ADDR bit to set to finish transmitting address
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
 		I2C1->CR1 |= 0X1 << 9; //stopping I2C
-		return 0;
+		return I2C_ERR_TMO_ADDR;
 	}
 
-	//dummy sr1 and sr2 read to clear ADDR
-	dummy = I2C1->SR1;
-	dummy = I2C1->SR2;
+	i2c_clear_ADDR();
 
 	//writing register value to the data register
 	I2C1->DR = reg;
@@ -189,7 +198,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 	//waiting for byte transfer finished flag for register address write completion
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_TXE;
 	}
 
 	//repeated start condition
@@ -197,7 +206,7 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_SB;
 	}
 
 	//writing address to data register for read operation
@@ -205,25 +214,23 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
 
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_ADDR;
 	}
 
 	I2C1->CR1 &= ~(1<<10);  // clear the ACK bit as we only need one byte
 
-	//dummy sr1 and sr2 read to clear ADDR
-	dummy = I2C1->SR1;
-	dummy = I2C1->SR2;
+	i2c_clear_ADDR();
 
 	I2C1->CR1 |= 0X1 << 9; // stopping I2C
 
 	if(timeout(&I2C1->SR1, (1<<6)) == 0){  	// wait for RxNE to set receive not empty
 		I2C1->CR1 |= 0X1 << 9; 				// stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_RXNE;
 	}
 	*value = I2C1->DR;
 	I2C1->CR1 |= (1 << 10);					//re-enabling ACK for future transfers
 
-	return 1;
+	return I2C_OK;
 }
 
 // i2c multi byte read function
@@ -233,11 +240,11 @@ int i2c_read_reg(uint8_t addr, uint8_t reg, uint8_t *value)
  * value - the variable in which the value from the register is read
  * bytes - no of bytes to read
  */
-int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
+i2c_status_t i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 {
 	if(!(bytes >= 3))
 	{
-		return 0;
+		return I2C_ERR_ARG;
 	}
 	volatile uint8_t dummy = 0;// dummy variable to read sr1 and sr2
 
@@ -249,7 +256,7 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_SB;
 	}
 
 	// writing i2c address to data register
@@ -258,12 +265,10 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 	// waiting for ADDR bit to set to finish transmitting address
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
 		I2C1->CR1 |= 0X1 << 9; //stopping I2C
-		return 0;
+		return I2C_ERR_TMO_ADDR;
 	}
 
-	// dummy sr1 and sr2 read to clear ADDR
-	dummy = I2C1->SR1;
-	dummy = I2C1->SR2;
+	i2c_clear_ADDR();
 
 	//writing register value to the data register
 	I2C1->DR = reg;
@@ -271,7 +276,7 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 	//waiting for byte transfer finished flag for register address write completion
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_TXE;
 	}
 
 	// repeated start condition
@@ -279,7 +284,7 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 
 	if(timeout(&I2C1->SR1, (1 << 0)) == 0){ // checking if start condition is generated
 		I2C1->CR1 |= 0X1 << 9; 				// stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_SB;
 	}
 
 	// writing address to data register for read operation
@@ -287,13 +292,11 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 
 	if(timeout(&I2C1->SR1, (1 << 1)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_ADDR;
 	}
 
 	// clearing ADDR without clearing ACK, this is one difference in multiple byte read
-	// dummy sr1 and sr2 read to clear ADDR
-	dummy = I2C1->SR1;
-	dummy = I2C1->SR2;
+	i2c_clear_ADDR();
 
 	// bulk byte read until n-3
 	uint32_t remaining = bytes;
@@ -303,7 +306,7 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 		// RxNE is set when data register has data, so checking
 		if(timeout(&I2C1->SR1, (1<<6)) == 0){  	// wait for RxNE to set receive not empty
 			I2C1->CR1 |= 0X1 << 9; 				// stopping I2C if timeout exceeds
-			return 0;
+			return I2C_ERR_TMO_RXNE;
 		}
 		value[ bytes - remaining ] = I2C1->DR;
 		remaining--; // decrementing remaining when a byte is read
@@ -313,7 +316,7 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 	//waiting for byte transfer finished flag to apply configurations for next transfer
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_TXE;
 	}
 
 	I2C1->CR1 &= ~(1<<10);  // clear the ACK bit so that a NACK is send for the last byte
@@ -325,7 +328,7 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 	//waiting for byte transfer finished flag to apply configurations for next transfer
 	if(timeout(&I2C1->SR1, (1 << 2)) == 0){
 		I2C1->CR1 |= 0X1 << 9; 				//stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_TXE;
 	}
 
 	I2C1->CR1 |= 0X1 << 9; // stopping I2C
@@ -336,7 +339,7 @@ int i2c_multi_read_reg(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes
 
 	if(timeout(&I2C1->SR1, (1<<6)) == 0){  	// wait for RxNE to set receive not empty
 		I2C1->CR1 |= 0X1 << 9; 				// stopping I2C if timeout exceeds
-		return 0;
+		return I2C_ERR_TMO_RXNE;
 	}
 	// reading last byte
 	value[ bytes - remaining ] =  I2C1->DR;
@@ -404,7 +407,7 @@ BMP280_U32_t bmp280_compensate_P_int64(BMP280_S32_t adc_P, bmp280_calib_t *c)
 	return (BMP280_U32_t)p;
 }
 
-static void i2c1_init()
+static void i2c1_init(void)
 {
 	//	SETUP
 	RCC->AHB1ENR |= 0x1 << 1;		//Enable clock for AHB1 bus
@@ -440,59 +443,8 @@ static void i2c1_init()
 
 int main()
 {
+	i2c1_init();
 
-
-
-	/*
-	// test for the read function
-	uint8_t id = 0;
-
-	if(!i2c_read_reg(BMP280_I2C_ADDR, BMP280_REG_ID, &id)){
-		while(1){__NOP();}
-	}
-	*/
-
-	/*
-	//test for the write function
-	uint8_t ctrl_meas_status;
-	if(!i2c_write_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, 0x03)){
-		while(1){__NOP();}
-	}
-	if(!i2c_read_reg(BMP280_I2C_ADDR, BMP280_REG_CTRL_MEAS, &ctrl_meas_status)){
-		while(1){__NOP();}
-	}
-	*/
-
-
-	/*
-	// test for the multiple byte read function
-	uint8_t buf[24];
-	uint8_t flag = 0;
-	bmp280_calib_t calib;
-
-	for (int i = 0; i < 24; i++) {
-	    buf[i] = 7;
-	}
-
-	if(i2c_multi_read_reg(BMP280_I2C_ADDR, 0x88, buf, 24))
-	{
-		flag = 0;
-		bmp280_parse_calib(buf, &calib);
-		while(1){__NOP();}
-	}
-	else{flag = 1;}
-	*/
-	/*
-	int8_t flag = 0,op = 0;
-	int32_t temp = 0, pres = 0;
-	while(1){
-		op = bmp280_read_raw(&temp, &pres);
-		if(op == 0){flag = 1;}
-		else if(op == 2){flag = 2;}
-		else if(op == 3){flag = 3;}
-		else{flag = 0;}
-	}
-	*/
 	int8_t flag = 0;
 	int32_t temp = 0, pres = 0;
 	uint8_t buf[24];
