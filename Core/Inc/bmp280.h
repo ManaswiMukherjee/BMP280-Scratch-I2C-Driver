@@ -8,9 +8,7 @@ typedef int32_t BMP280_S32_t;    // Signed 32-bit integer
 typedef uint32_t BMP280_U32_t;   // Unsigned 32-bit integer
 typedef int64_t BMP280_S64_t;    // Signed 64-bit integer
 
-extern BMP280_S32_t t_fine; // variable required for pressure calculations
-
-// struct for the calibration block
+// structure for the calibration block
 typedef struct {
     uint16_t dig_T1;
     int16_t  dig_T2;
@@ -27,6 +25,15 @@ typedef struct {
     int16_t  dig_P9;
 } bmp280_calib_t;
 
+// instance structure for a sensor
+typedef struct {
+	uint8_t addr;
+	bmp280_calib_t calib;
+	BMP280_S32_t t_fine;
+}bmp280_t;
+
+
+
 #define BMP280_I2C_ADDR 		0x76	// 7 bit address of bmp280
 
 #define BMP280_REG_ID			0xD0	// contains chip identification number 0x58
@@ -40,12 +47,14 @@ typedef struct {
 #define BMP280_REG_TEMP_MSB		0xFA	//
 #define BMP280_REG_TEMP_LSB		0xFB	//
 #define BMP280_REG_TEMP_XLSB	0xFC	//
-
+#define BMP280_REG_CALIB		0X88	// start of calibration block
 
 void bmp280_parse_calib(const uint8_t *buf, bmp280_calib_t *c);
-int bmp280_init(void);
+int bmp280_init(bmp280_t *inst);
+float getTemperature(bmp280_t *inst);
+float getPressure(bmp280_t *inst);
 int bmp280_read_raw(int32_t *raw_temp, int32_t *raw_pres);
-BMP280_S32_t bmp280_compensate_T_int32(BMP280_S32_t adc_T, bmp280_calib_t *c);
-BMP280_U32_t bmp280_compensate_P_int64(BMP280_S32_t adc_P, bmp280_calib_t *c);
+BMP280_S32_t bmp280_compensate_T_int32(bmp280_t *inst, BMP280_S32_t adc_T, bmp280_calib_t *c);
+BMP280_U32_t bmp280_compensate_P_int64(bmp280_t *inst, BMP280_S32_t adc_P, bmp280_calib_t *c);
 
 #endif

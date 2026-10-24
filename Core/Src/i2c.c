@@ -23,7 +23,7 @@ static int timeout(volatile uint32_t *reg, uint16_t msk)
 }
 
 
-void i2c_clear_ADDR(void)
+static void i2c_clear_ADDR(void)
 {
 	int dummy = 0;
 	//dummy sr1 and sr2 read to clear ADDR
@@ -126,18 +126,18 @@ i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 		// READ PROCESS FOR 1 BYTE
 
 		//enabling ACK for acknowledgment of received data
-		I2C1->CR1 |= 0x1 << 10;
+		I2C1->CR1 |= I2C_CR1_ACK_Msk;
 
 		//starting generation
-		I2C1->CR1 |= 0x1 << 8;
+		I2C1->CR1 |= I2C_CR1_START_Msk;
 
-		I2C_TMO(&I2C1->SR1, (1 << 0), I2C_ERR_TMO_SB);
+		I2C_TMO(&I2C1->SR1, I2C_SR1_SB_Msk, I2C_ERR_TMO_SB);
 
 		//writing i2c address to data register
 		I2C1->DR = addr << 1 | 0;
 
 		// waiting for ADDR bit to set to finish transmitting address
-		I2C_TMO(&I2C1->SR1, (1 << 1), I2C_ERR_TMO_ADDR);
+		I2C_TMO(&I2C1->SR1, I2C_SR1_ADDR_Msk, I2C_ERR_TMO_ADDR);
 
 		i2c_clear_ADDR();
 
@@ -145,17 +145,17 @@ i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 		I2C1->DR = reg;
 
 		//waiting for byte transfer finished flag for register address write completion
-		I2C_TMO(&I2C1->SR1, (1 << 2), I2C_ERR_TMO_TXE);
+		I2C_TMO(&I2C1->SR1, I2C_SR1_BTF_Msk, I2C_ERR_TMO_TXE);
 
 		//repeated start condition
-		I2C1->CR1 |= 0x1 << 8;
+		I2C1->CR1 |= I2C_CR1_START_Msk;
 
-		I2C_TMO(&I2C1->SR1, (1 << 0), I2C_ERR_TMO_SB);
+		I2C_TMO(&I2C1->SR1, I2C_SR1_SB_Msk, I2C_ERR_TMO_SB);
 
 		//writing address to data register for read operation
 		I2C1->DR = addr << 1 | 1;
 
-		I2C_TMO(&I2C1->SR1, (1 << 1), I2C_ERR_TMO_ADDR);
+		I2C_TMO(&I2C1->SR1, I2C_SR1_ADDR_Msk, I2C_ERR_TMO_ADDR);
 
 		I2C1->CR1 &= ~I2C_CR1_ACK_Msk;  // clear the ACK bit as we only need one byte
 
@@ -251,7 +251,7 @@ i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 		remaining--;
 
 		// re-enabling ACK for future transfers
-		I2C1->CR1 |= (1 << 10);
+		I2C1->CR1 |= I2C_CR1_ACK_Msk;
 
 		return I2C_OK;
 	 }

@@ -14,9 +14,7 @@ typedef enum {
     I2C_ERR_NACK      = -7,   /* AF set: slave did not ACK */
 } i2c_status_t;
 
-static int timeout(volatile uint32_t *reg, uint16_t msk);
 void i2c1_init(void);
-void i2c_clear_ADDR(void);
 i2c_status_t i2c_write(uint8_t addr, uint8_t reg, uint8_t value);
 i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes);
 #endif
