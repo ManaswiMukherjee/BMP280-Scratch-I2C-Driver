@@ -5,30 +5,30 @@
  */
 
 #include "stm32f4xx.h"
-#include "stdint.h"
-#include "string.h"
+#include <stdint.h>
+#include <string.h>
 #include "bmp280.h"
 #include "i2c.h"
 
 int main()
 {
+	int err = 0;
+	//uint8_t  id = 0;
+	//initializing i2c
 	i2c1_init();
-	bmp280_init();
-	int8_t flag = 0;
-	int32_t temp = 0, pres = 0;
-	uint8_t buf[24];
-	bmp280_calib_t cali;
-	bmp280_read_raw(&temp, &pres);
-	if(!i2c_read(BMP280_I2C_ADDR, 0x88, buf, 24)){
-		flag = 1;
+
+	// creating one instance
+	bmp280_t sensor1;
+	// initializing the sensor
+	err = bmp280_init(&sensor1, BMP280_I2C_ADDR);
+	if(err != 0){
+		while(1) __NOP();
 	}
-	bmp280_parse_calib(buf, &cali);
+	sensor1.addr = BMP280_I2C_ADDR;
 
-	float final_temp = 0, final_pres = 0;
-	final_temp = bmp280_compensate_T_int32(temp, &cali);
-	final_pres = bmp280_compensate_P_int64(pres, &cali);
-	final_pres = final_pres / 256 / 100;
+	float temp = 0, pres = 0;
 
+	temp = getTemperature(&sensor1);
+	pres = getPressure(&sensor1);
 
-	while(1){__NOP();}
 }
