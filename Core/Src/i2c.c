@@ -1,4 +1,3 @@
-
 #include "i2c.h"
 #include "stdint.h"
 #include "stm32f4xx.h"
@@ -13,8 +12,8 @@ Example: Checking whether start condition is generated or not in SR1 after we se
 
 static int timeout(volatile uint32_t *reg, uint16_t msk)
 {
-	uint16_t time = 10000;							// storing 250 in time variable as it is 8-bit variable
-	for(uint16_t t = 0; t <= time * 4; t++)		// rough guessing of 1000 cycles for timeout completion
+	uint16_t time = 65535;				// storing max possible value in "time"
+	for(uint16_t t = 0; t <= time; t++)
 	{
 		if((*reg & msk) == msk){return 1;}
 
@@ -22,38 +21,71 @@ static int timeout(volatile uint32_t *reg, uint16_t msk)
 	return 0;
 }
 
-
+/* This is a stm32 hardware quirk
+ * To clear the ADDR bit the sr1 and sr2 registers must be read in order
+ */
 static void i2c_clear_ADDR(void)
 {
 	int dummy = 0;
 	//dummy sr1 and sr2 read to clear ADDR
 	dummy = I2C1->SR1;
 	dummy = I2C1->SR2;
+	(void)dummy; // telling the compiler that we don't use this variable
+}
 
+/* BUSY bit check function
+ * checks if the BUS is busy and waits until it times out
+ */
+static i2c_status_t i2c_busy_check(void)
+{
+	uint32_t time = 65535;
+	while ((I2C1->SR2 & I2C_SR2_BUSY) || (I2C1->CR1 & I2C_CR1_STOP)) {
+	    if (--time == 0) {
+	    	return I2C_ERR_BUSY;
+	    }
+	}
+
+	return I2C_OK;
+}
+
+// an abort function to clear all flags before stopping transmission
+static void i2c_abort(void)
+{
+    // stopping generation
+    I2C1->CR1 |= I2C_CR1_STOP;
+
+    // Clear all communication and error flags in SR1 by writing 0 to them
+    // (AF: Acknowledge Failure, BERR: Bus Error, ARLO: Arbitration Lost, OVR: Overrun)
+    uint32_t err_flags = I2C_SR1_AF | I2C_SR1_BERR | I2C_SR1_ARLO | I2C_SR1_OVR;
+    I2C1->SR1 &= ~err_flags;
+
+    // Re-enabling ACK for future transactions
+    I2C1->CR1 |= I2C_CR1_ACK;
 }
 
 #define I2C_TMO(reg, mask, err) do { \
 	if(!timeout(reg, mask)) { \
-		I2C1->CR1 |= 0X1 << 9; \
+		i2c_abort(); \
+		I2C1->CR1 |= 0x1<<9; \
 		return err; } \
 }while(0)
 
 void i2c1_init(void)
 {
 	//	SETUP
-	RCC->AHB1ENR |= 0x1 << 1;		//Enable clock for AHB1 bus
-	RCC->APB1ENR |= 0x1 << 21;		//Enable peripheral
+	RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN_Msk;		//Enable clock for AHB1 bus
+	RCC->APB1ENR |= RCC_APB1ENR_I2C1EN_Msk;		//Enable peripheral
 
-	GPIOB->MODER &= ~((0x3 << 14) | (0x3 << 12));	//Put port to alternate function mode
-	GPIOB->MODER |= (0x1 << 15) | (0x1 << 13);
+	GPIOB->MODER &= ~(GPIO_MODER_MODE7_Msk | GPIO_MODER_MODE6_Msk);	//Put port to alternate function mode
+	GPIOB->MODER |= GPIO_MODER_MODE7_1 | GPIO_MODER_MODE6_1;
 
-	GPIOB->OTYPER |= (0X1 << 6) | (0X1 << 7);		// Mandatory Open-Drain for I2C, otherwise short circuit
+	GPIOB->OTYPER |= GPIO_OTYPER_OT7_Msk | GPIO_OTYPER_OT6_Msk;		// Mandatory Open-Drain for I2C, otherwise short circuit
 
-	GPIOB->AFR[0] &= ~((0xF << 28) | (0XF << 24)); 	// Alternate function selection
-	GPIOB->AFR[0] |= (0x4 << 28) | (0x4 << 24);
+	GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL7_Msk | GPIO_AFRL_AFSEL6_Msk); 	// Alternate function selection
+	GPIOB->AFR[0] |= GPIO_AFRL_AFRL7_2 | GPIO_AFRL_AFRL6_2;
 
-	GPIOB->OSPEEDR &= ~((0x3 << 14) | (0x3 << 12));	//Setting fast speed 10
-	GPIOB->OSPEEDR |= (0x1 << 15) | (0x1 << 13);
+	GPIOB->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR7 | GPIO_OSPEEDER_OSPEEDR6);	//Setting fast speed 10
+	GPIOB->OSPEEDR |= GPIO_OSPEEDR_OSPEED7_1 | GPIO_OSPEEDR_OSPEED6_1;
 
 	// I2C CONFIGURATION
 
@@ -69,13 +101,15 @@ void i2c1_init(void)
 	I2C1->TRISE = 0x11;
 
 	// enabling peripheral
-	I2C1->CR1 |= 0X1;
+	I2C1->CR1 |= I2C_CR1_PE;
 }
 
 
 // i2c write function
 i2c_status_t i2c_write(uint8_t addr, uint8_t reg, uint8_t value)
 {
+	// checking if bus is busy or not
+	i2c_busy_check();
 
 	//enabling ACK for acknowledgment of received data
 	I2C1->CR1 |= I2C_CR1_ACK;
@@ -121,6 +155,9 @@ i2c_status_t i2c_write(uint8_t addr, uint8_t reg, uint8_t value)
  */
 i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 {
+	// checking if bus is busy
+	i2c_busy_check();
+
 	if(bytes == 1)
 	{
 		// READ PROCESS FOR 1 BYTE
@@ -179,6 +216,7 @@ i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 	}
 	else if(bytes >= 3)
 	{
+
 		// enabling ACK for acknowledgment of received data
 		I2C1->CR1 |= I2C_CR1_ACK_Msk;
 
@@ -200,6 +238,8 @@ i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 
 		//waiting for byte transfer finished flag for register address write completion
 		I2C_TMO(&I2C1->SR1, I2C_SR1_BTF_Msk, I2C_ERR_TMO_TXE);
+
+		i2c_busy_check();
 
 		// repeated start condition
 		I2C1->CR1 |= I2C_CR1_START_Msk;

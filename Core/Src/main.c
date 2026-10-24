@@ -12,22 +12,23 @@
 
 int main()
 {
+	int err = 0;
+	//uint8_t  id = 0;
 	//initializing i2c
 	i2c1_init();
 
-
 	// creating one instance
 	bmp280_t sensor1;
-
 	// initializing the sensor
-	bmp280_init(&sensor1);
+	err = bmp280_init(&sensor1, BMP280_I2C_ADDR);
+	if(err != 0){
+		while(1) __NOP();
+	}
 	sensor1.addr = BMP280_I2C_ADDR;
 
 	float temp = 0, pres = 0;
 
-	while(1){
 	temp = getTemperature(&sensor1);
 	pres = getPressure(&sensor1);
-	}
 
 }

@@ -224,3 +224,10 @@ data N-2 is read)
 ## Temperature and pressure both work 0.0
 ### Now fixing correctness problems on the code.
 
+
+# DAY-6 23/10/2026
+
+### Fixed a lot of things, now v0.1 is officially complete.
+### Needs review from more experienced people
+### The final I2C logic analyzer capture:
+![Final capture](./Docs/final_measurement_waveform.png)
