@@ -3,8 +3,6 @@
 #include "i2c.h"
 #include "stm32f4xx.h"
 
-BMP280_S32_t t_fine; // variable required for pressure calculations
-
 // function to convert the calibration data into the struct
 void bmp280_parse_calib(const uint8_t *buf, bmp280_calib_t *c)
 {
@@ -25,17 +23,31 @@ void bmp280_parse_calib(const uint8_t *buf, bmp280_calib_t *c)
 
 
 
-int bmp280_init(void)
+int bmp280_init(bmp280_t *inst)
 {
+	// Robust startup sequence according to datasheet
+	/* 1. Reading and verifying chip ID and if it equals 0x56 */
+	/* 2. Performing a soft reset */
+	/* 3. Reading calibration block and taking measurements*/
 	uint8_t id = 0;
 
 	if(i2c_read(BMP280_I2C_ADDR, BMP280_REG_ID, &id, 1) != I2C_OK){
 		return -1;
-		while(1){__NOP();}
 	}
 
 	if(id != 0x58)
 		return -1;
+
+	// Performing soft reset
+	// i2c_write
+
+	// Reading the calibration block
+	uint8_t buf[24];
+	if(i2c_read(BMP280_I2C_ADDR, 0x88, buf, 24) != I2C_OK){
+		return -1;
+	}
+	bmp280_parse_calib(buf, &(inst->calib));
+
 
 	return 0;
 }
@@ -61,20 +73,43 @@ int bmp280_read_raw(int32_t *raw_temp, int32_t *raw_pres)
 
 }
 
-BMP280_S32_t bmp280_compensate_T_int32(BMP280_S32_t adc_T, bmp280_calib_t *c)
+float getTemperature(bmp280_t *inst)
+{
+	float final_temp = 0;
+	int32_t raw_temp = 0, raw_pres = 0;
+	bmp280_read_raw(&raw_temp, &raw_pres);
+	final_temp = bmp280_compensate_T_int32(inst, raw_temp, &inst->calib);
+	return final_temp;
+}
+
+float getPressure(bmp280_t *inst)
+{
+	// declaring variables
+	float final_pres = 0;
+	int32_t raw_temp = 0, raw_pres = 0;
+	bmp280_read_raw(&raw_temp, &raw_pres);
+	getTemperature(inst);
+	bmp280_compensate_T_int32(inst, raw_temp, &inst->calib);
+	final_pres = bmp280_compensate_P_int64(inst, raw_pres, &inst->calib);
+	final_pres = final_pres / 256 / 100;
+	return final_pres;
+}
+
+// Temperature and Pressure compensation functions according to datasheet of bmp280
+BMP280_S32_t bmp280_compensate_T_int32(bmp280_t *inst, BMP280_S32_t adc_T, bmp280_calib_t *c)
 {
 	BMP280_S32_t var1, var2, T;
 	var1 = ((((adc_T >> 3) - ((BMP280_S32_t)c->dig_T1 << 1))) * ((BMP280_S32_t)c->dig_T2)) >> 11;
 	var2 = (((((adc_T >> 4) - ((BMP280_S32_t)c->dig_T1)) * ((adc_T >> 4) - ((BMP280_S32_t)c->dig_T1))) >> 12) *((BMP280_S32_t)c->dig_T3)) >> 14;
-	t_fine = var1 + var2;
-	T = (t_fine * 5 + 128) >> 8;
+	inst->t_fine = var1 + var2;
+	T = (inst->t_fine * 5 + 128) >> 8;
 	return T;
 }
 
-BMP280_U32_t bmp280_compensate_P_int64(BMP280_S32_t adc_P, bmp280_calib_t *c)
+BMP280_U32_t bmp280_compensate_P_int64(bmp280_t *inst, BMP280_S32_t adc_P, bmp280_calib_t *c)
 {
 	BMP280_S64_t var1, var2, p;
-	var1 = ((BMP280_S64_t)t_fine) - 128000;
+	var1 = ((BMP280_S64_t)(inst->t_fine)) - 128000;
 	var2 = var1 * var1 * (BMP280_S64_t)c->dig_P6;
 	var2 = var2 + ((var1*(BMP280_S64_t)c->dig_P5) << 17);
 	var2 = var2 + (((BMP280_S64_t)c->dig_P4) << 35);
