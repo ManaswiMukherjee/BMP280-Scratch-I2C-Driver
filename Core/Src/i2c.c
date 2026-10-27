@@ -12,8 +12,8 @@ Example: Checking whether start condition is generated or not in SR1 after we se
 
 static int timeout(volatile uint32_t *reg, uint16_t msk)
 {
-	uint16_t time = 65535;				// storing max possible value in "time"
-	for(uint16_t t = 0; t <= time; t++)
+	uint16_t time = 65000;				// storing max possible value in "time"
+	for(uint16_t t = 0; t < time; t++)
 	{
 		if((*reg & msk) == msk){return 1;}
 
@@ -63,11 +63,16 @@ static void i2c_abort(void)
     I2C1->CR1 |= I2C_CR1_ACK;
 }
 
+static i2c_status_t i2c_fail(i2c_status_t err)
+{
+    if (I2C1->SR1 & I2C_SR1_AF) { err = I2C_ERR_NACK; }
+    i2c_abort();
+    return err;
+}
+
 #define I2C_TMO(reg, mask, err) do { \
 	if(!timeout(reg, mask)) { \
-		i2c_abort(); \
-		I2C1->CR1 |= 0x1<<9; \
-		return err; } \
+		return i2c_fail(err); } \
 }while(0)
 
 void i2c1_init(void)
@@ -156,7 +161,8 @@ i2c_status_t i2c_write(uint8_t addr, uint8_t reg, uint8_t value)
 i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 {
 	// checking if bus is busy
-	i2c_busy_check();
+	i2c_status_t st = i2c_busy_check();
+	if (st != I2C_OK) return st;
 
 	if(bytes == 1)
 	{
@@ -239,7 +245,6 @@ i2c_status_t i2c_read(uint8_t addr, uint8_t reg, uint8_t *value, uint32_t bytes)
 		//waiting for byte transfer finished flag for register address write completion
 		I2C_TMO(&I2C1->SR1, I2C_SR1_BTF_Msk, I2C_ERR_TMO_TXE);
 
-		i2c_busy_check();
 
 		// repeated start condition
 		I2C1->CR1 |= I2C_CR1_START_Msk;

@@ -82,6 +82,11 @@ bmp280_status_t bmp280_read_raw(bmp280_t *inst, int32_t *raw_temp, int32_t *raw_
 
 	*raw_pres = (val[0] << 12) | (val[1] << 4) | val[2] >> 4;
 	*raw_temp = (val[3] << 12) | (val[4] << 4) | val[5] >> 4;
+
+	if (*raw_temp == 0x80000 || *raw_pres == 0x80000){
+		return BMP280_ERR_NOT_READY;
+	}
+
 	return BMP280_OK;
 
 }
