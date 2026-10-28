@@ -27,8 +27,10 @@ int main()
 	sensor1.addr = BMP280_I2C_ADDR;
 
 	float temp = 0, pres = 0;
-
+	(void)temp; // as these variables are not being used
+	(void)pres; // writing void to present variable not used warning
 	temp = getTemperature(&sensor1);
 	pres = getPressure(&sensor1);
 
+	while(1){__NOP();}
 }

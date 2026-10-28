@@ -1,6 +1,10 @@
 # BMP280-Scratch-I2C-Driver
 
+### A demo usage of this project is shown in [this youtube video](https://youtu.be/9rb_QE7yvto?si=5Z7McSPA7PZpIOzA)
+
 <h3>This project is an implementation of an I2C driver from scratch using CMSIS headers.</h3>
+
+<h3> Original code is MIT-licensed; ST and ARM files retain their own licenses. </h3>
 
 <h2>Requirements :</h2>
 
@@ -70,3 +74,42 @@ cd BMP280-Scratch-I2C-Driver
 4. Click **Resume** (green play button `F8`) to run the code.
 
 ---
+
+## Limitations (v0.1)
+
+- **Polling only.** No interrupt or DMA transfers; the CPU busy-waits on status flags.
+- **I2C1 only** (PB6/PB7), fixed at 100 kHz standard mode with a 16 MHz APB1 clock. Other clock setups need new CR2/CCR/TRISE values.
+- **Timeouts are iteration counts, not time.** Real duration depends on the compiler optimization level.
+- **No 2-byte read.** `i2c_read` supports 1 byte and 3 or more bytes; 2 returns `I2C_ERR_ARG` (not needed for the BMP280).
+- **No bus recovery.** A slave holding SDA low is not cleared by toggling SCL.
+- **Single master, single sensor instance tested.**
+- **Error reporting is minimal.** `getTemperature()` and `getPressure()` return `-1` on failure, which cannot occur as a valid reading in the intended environment, and each performs its own sensor read, so the two values may come from different samples.
+- **Blocking, not thread-safe.** No RTOS or concurrency support.
+- **Hardware assumptions.** External pull-ups come from the breakout board (none are enabled on the MCU pins); the sensor is expected at 0x76 or 0x77 and reports chip ID 0x58 (a BME280 will be rejected).
+
+---
+# Project Structure
+## Project structure
+
+```text
+BMP280/
+├── Core/
+│   ├── Inc/
+│   │   ├── i2c.h          # I2C driver API and status codes
+│   │   └── bmp280.h       # BMP280 registers, types, API
+│   └── Src/
+│       ├── i2c.c          # Bare-metal I2C1 driver (register level)
+│       ├── bmp280.c       # Sensor init, raw read, compensation
+│       └── main.c         # Example usage
+├── sensor_arduino/        # Reference sketch using the Adafruit library,
+│                          # used to cross-check readings (RP2040)
+├── logic_analyzer_test/   # Pico sketch that generates known UART/SPI/PWM
+│                          # signals to validate the logic analyzer setup
+├── tests/test.txt         # Bring-up snippets used during development
+├── Docs/                  # Setup photo and logic analyzer capture
+├── CHANGELOG.md           # Bugs, fixes and learning log
+└── BMP280.ioc             # CubeMX project file (clock/pin scaffolding)
+
+```
+
+The remaining files under `Core/` (startup, system, syscalls, linker scripts) are STM32CubeIDE-generated scaffolding.
