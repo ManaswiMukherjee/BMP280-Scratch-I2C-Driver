@@ -1,5 +1,7 @@
 # BMP280-Scratch-I2C-Driver
 
+### A demo usage of this project is shown in [this youtube video](https://youtu.be/9rb_QE7yvto?si=5Z7McSPA7PZpIOzA)
+
 <h3>This project is an implementation of an I2C driver from scratch using CMSIS headers.</h3>
 
 <h3> Original code is MIT-licensed; ST and ARM files retain their own licenses. </h3>
